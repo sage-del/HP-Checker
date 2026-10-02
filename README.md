@@ -36,6 +36,7 @@ npm run dev                  # http://localhost:3000
 | `/api/monitor/sites/[id]/run` | 監視サイトを今すぐ診断して記録する |
 | `/api/monitor/alerts/unread` | 未読の通知数（サイドバーの「通知」タブのバッジ） |
 | `/api/cron/monitor` | 定期診断（Vercel Cron が呼ぶ） |
+| `/api/automation/seo-report` | サイト診断・GA4・GSCを統合するCodex向けAPI（Bearer認証） |
 
 ---
 
@@ -164,6 +165,63 @@ npm run dev                  # http://localhost:3000
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | 監視で必須 | サイト全体の Basic 認証（ユーザー名の既定は `admin`） |
 | `CRON_SECRET` | 監視で必須 | Vercel Cron の呼び出しを確かめる合言葉。本番で未設定だと定期診断は動かない |
 | `ALLOW_PRIVATE_HOSTS` | 開発用 | localhost や LAN 内のサイトを診断したいときだけ `1`。**本番では絶対に設定しない** |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | 自動化で必須 | GoogleサービスアカウントのキーJSON |
+| `GA4_PROPERTY_ID` | 自動化で必須 | GA4の数字のプロパティID（測定IDではありません） |
+| `GSC_SITE_URL` | 自動化で必須 | `sc-domain:example.com` またはURLプレフィックス |
+| `AUTOMATION_API_KEY` | 自動化で必須 | 自動化APIを保護するランダムなBearerキー |
+| `HP_CHECKER_BASE_URL` | Codexで必須 | デプロイしたツールのURL |
+| `HP_CHECKER_API_KEY` | Codexで必須 | `AUTOMATION_API_KEY`と同じ値をCodex側に設定 |
+| `SEO_TARGET_URL` | 任意 | Codexが診断する既定URL |
+
+---
+
+## GA4・Search Console・Codex 自動化
+
+自社サイトだけを無人実行する用途では、Googleのサービスアカウントを使います。利用者のGoogleログイン操作は不要です。手動診断の画面と `/api/site` は、Google連携を設定しなくても従来どおり動きます。
+
+### Google側の準備
+
+1. Google Cloudでプロジェクトを作り、**Google Analytics Data API** と **Google Search Console API** を有効にします。
+2. サービスアカウントを作成し、JSONキーを1つ発行します。JSONはGitHubへ追加しません。
+3. GA4の「管理 → プロパティのアクセス管理」で、サービスアカウントのメールアドレスを**閲覧者**として追加します。
+4. Search Consoleの「設定 → ユーザーと権限」で、同じメールアドレスを**フルユーザー**として追加します。
+5. Vercelのプロジェクト設定で次をProduction環境変数へ追加し、再デプロイします。
+
+```text
+GOOGLE_SERVICE_ACCOUNT_JSON={...JSON全体...}
+GA4_PROPERTY_ID=123456789
+GSC_SITE_URL=sc-domain:example.com
+AUTOMATION_API_KEY=十分に長いランダム値
+```
+
+`GA4_PROPERTY_ID` は `G-XXXXXXXXXX` 形式の測定IDではなく、GA4管理画面の「プロパティ設定」にある数字です。`AUTOMATION_API_KEY` は `openssl rand -hex 32` などで生成できます。
+
+### API
+
+```bash
+curl -X POST "https://hp-checker.vercel.app/api/automation/seo-report" \
+  -H "Authorization: Bearer $HP_CHECKER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"url":"https://www.example.com","maxPages":50}'
+```
+
+期間を省略すると前日までの28日間を取得します。応答には次が含まれます。
+
+- `audit` — このツールによる技術診断と改善項目
+- `ga4` — 自然検索のセッション、エンゲージメント、ランディングページ
+- `gsc` — 検索語句・ページ別のクリック、表示、CTR、平均掲載順位
+- `opportunities` — 3つのデータを優先順位付きで統合した改善候補
+
+### Codexから実行
+
+Codexのクラウド環境に `HP_CHECKER_BASE_URL`、`HP_CHECKER_API_KEY`、必要なら `SEO_TARGET_URL` を設定します。その後は次のコマンドを実行できます。
+
+```bash
+npm run seo:report -- --url "https://www.example.com"
+npm run seo:report -- --url "https://www.example.com" --start-date 2026-09-01 --end-date 2026-09-30
+```
+
+リポジトリの `AGENTS.md` にこの手順を記載しているため、Codexへ「example.comのSEOレポートを作成して」と指示すると、このAPIを使う前提で作業します。
 
 ---
 
