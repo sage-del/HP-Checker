@@ -223,6 +223,20 @@ npm run seo:report -- --url "https://www.example.com" --start-date 2026-09-01 --
 
 リポジトリの `AGENTS.md` にこの手順を記載しているため、Codexへ「example.comのSEOレポートを作成して」と指示すると、このAPIを使う前提で作業します。
 
+### 保留中のタスク（会社承認待ち）
+
+**状態: 保留。** 利用中のGoogle Cloudアカウントではカード登録が求められており、会社の許可がすぐには下りないため、GA4・Search Consoleの実データ接続はここで停止しています。自動化APIとCodex用CLIの実装は完了していますが、承認が下りるまではGoogle Cloudプロジェクトやサービスアカウントを新たに作成しません。
+
+会社の許可が下りたら、次の順番で再開します。
+
+- Google Analytics Data APIとGoogle Search Console APIを有効化する
+- サービスアカウントを作成し、GA4へ閲覧者、Search Consoleへフルユーザーとして追加する
+- Vercelへ `GOOGLE_SERVICE_ACCOUNT_JSON`、`GA4_PROPERTY_ID`、`GSC_SITE_URL`、`AUTOMATION_API_KEY` を登録して再デプロイする
+- Codex環境の `HP_CHECKER_API_KEY` に `AUTOMATION_API_KEY` と同じ値を登録して環境設定を公開する
+- `npm run seo:report -- --url "対象サイトURL"` で実データ接続を確認する
+
+承認待ちの間、`/api/automation/seo-report` が `AUTOMATION_API_KEY が設定されていません` と返すのは想定どおりです。サービスアカウントのJSONキーやAPIキーは、README・GitHub・チャットには保存しません。
+
 ---
 
 ## コマンド
