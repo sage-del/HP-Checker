@@ -152,3 +152,33 @@ describe("alerts", () => {
     expect(await listAlerts(db, { siteId: b.id })).toHaveLength(1);
   });
 });
+
+describe("cross-site views", () => {
+  it("lists recent runs across sites and the latest broken links per site", async () => {
+    const { listRecentRuns, latestLinksBySite } = await import("../store");
+    const a = await addSite(db, { url: "https://a.example/", name: "A", frequency: "daily" });
+    const b = await addSite(db, { url: "https://b.example/", name: "B", frequency: "daily" });
+    const links = (url: string) => ({ found: 3, checked: 3, unchecked: 0, durationMs: 1, broken: [{ url, status: 404, kind: "link" as const, sources: [], sourceCount: 1 }] });
+    const old = fakeResult({ overall: 60, links: links("https://a.example/old") });
+    const now = fakeResult({ overall: 70, links: links("https://a.example/new") });
+    for (const [result, iso] of [[old, "2026-10-01T00:00:00Z"], [now, "2026-10-02T00:00:00Z"]] as const) {
+      await saveRun(db, { siteId: a.id, trigger: "schedule", startedAt: at(iso), finishedAt: at(iso), status: "success", snapshot: snapshotOf(result), result });
+    }
+    await saveRun(db, { siteId: b.id, trigger: "manual", startedAt: at("2026-10-03T00:00:00Z"), finishedAt: at("2026-10-03T00:00:00Z"), status: "error", error: "x" });
+
+    const runs = await listRecentRuns(db);
+    expect(runs.map((r) => [r.siteName, r.status, r.overall])).toEqual([
+      ["B", "error", null],
+      ["A", "success", 70],
+      ["A", "success", 60],
+    ]);
+    expect((await listRecentRuns(db, { status: "error" })).map((r) => r.siteUrl)).toEqual(["https://b.example/"]);
+    expect(await listRecentRuns(db, { siteId: a.id, limit: 1 })).toHaveLength(1);
+
+    const bySite = await latestLinksBySite(db);
+    expect(bySite.map((s) => [s.site.name, s.links?.broken.map((x) => x.url) ?? null])).toEqual([
+      ["A", ["https://a.example/new"]],
+      ["B", null],
+    ]);
+  });
+});

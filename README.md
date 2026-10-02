@@ -16,16 +16,25 @@ npm run dev                  # http://localhost:3000
 
 ## 画面と API
 
+管理画面の形で、左のサイドバーに機能ごとのタブを並べています（`src/components/shell/nav.ts` が唯一の定義。スマホでは上部の「メニュー」から開きます）。
+
+| タブ | パス | 内容 |
+|---|---|---|
+| サイト診断 | `/` | サイト診断（SEO・AIO） |
+| ダッシュボード | `/monitor` | 監視サイト数・平均スコア・リンク切れ・未読の通知の集計と、監視サイトの一覧 |
+| サイト追加 | `/monitor/new` | 監視するサイトの登録（登録後はそのサイトの詳細へ） |
+| リンク切れ | `/monitor/links` | 全監視サイトの最新のリンク切れ |
+| 診断履歴 | `/monitor/runs` | 全サイトの診断の記録（サイト・結果で絞り込み） |
+| 通知 | `/monitor/alerts` | ツール内の通知（未読 / すべて）。タブに未読数のバッジ |
+| 設定 | `/settings` | 保存先の接続・ログイン・Cron・上限などの状態（値そのものは表示しない） |
+
 | パス | 内容 |
 |---|---|
-| `/` | サイト診断（SEO・AIO） |
 | `/api/site` | サイト全体の診断（進捗を配信しながらクロール） |
-| `/monitor` | 定期監視: 監視サイトの一覧・登録（`DATABASE_URL` を設定したときだけ） |
 | `/monitor/sites/[id]` | 監視サイトの詳細（スコアの推移・リンク切れ・通知・診断の記録・設定） |
 | `/monitor/runs/[id]` | 保存した 1 回分の診断レポート（前回との比較つき） |
-| `/monitor/alerts` | ツール内の通知（未読 / すべて） |
 | `/api/monitor/sites/[id]/run` | 監視サイトを今すぐ診断して記録する |
-| `/api/monitor/alerts/unread` | 未読の通知数（ヘッダーのベル） |
+| `/api/monitor/alerts/unread` | 未読の通知数（サイドバーの「通知」タブのバッジ） |
 | `/api/cron/monitor` | 定期診断（Vercel Cron が呼ぶ） |
 
 ---
@@ -101,7 +110,7 @@ npm run dev                  # http://localhost:3000
 
 ## 定期監視（`/monitor`）
 
-登録したサイトを決まった頻度（毎日 / 毎週）で自動診断し、**前回より悪くなったときにツール内で通知**します。Slack やメールなどの外部サービスには送りません。ヘッダーのベルに未読の数が出ます。
+登録したサイトを決まった頻度（毎日 / 毎週）で自動診断し、**前回より悪くなったときにツール内で通知**します。Slack やメールなどの外部サービスには送りません。サイドバーの「通知」タブに未読の数が出ます。
 
 ### 通知の出し方
 
@@ -167,6 +176,8 @@ npm run start      # 本番サーバー
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
 npm test           # vitest（判定ロジックの単体テスト）
+# 本番と同じ postgres ドライバーでの保存も確かめるとき（空のデータベースを指定する。テーブルを作り直す）
+TEST_DATABASE_URL=postgres://... npm test
 ```
 
 ---
@@ -178,13 +189,14 @@ src/
   app/
     page.tsx            # サイト診断（SEO・AIO）
     api/site/           # サイト診断（Route Handler、nodejs runtime）
-    monitor/            # 定期監視の画面とサーバーアクション
+    monitor/            # 定期監視の画面（ダッシュボード・サイト追加・リンク切れ・診断履歴・通知）とサーバーアクション
+    settings/           # 設定の確認画面
     api/monitor/ api/cron/monitor/  # 今すぐ診断・未読数・定期診断
   proxy.ts              # Basic 認証（旧 middleware）
   components/
     free/               # 診断の画面とレポート
-    monitor/            # 定期監視の画面部品（通知ベル・今すぐ診断など）
-    ui/ charts/ shell/  # 共通部品・依存なしの SVG グラフ・シェル（ヘッダー / フッター）
+    monitor/            # 定期監視の画面部品（今すぐ診断・集計カードなど）
+    ui/ charts/ shell/  # 共通部品・依存なしの SVG グラフ・シェル（サイドバー / フッター）
   lib/
     analyzer/           # 判定ルール（fetch.ts の assertPublicHost + fetchText が唯一の取得経路）
     crawl/              # 全ページクロール（sitemap 展開 + 内部リンク BFS）
@@ -209,7 +221,7 @@ src/
 
 **画面から外部サイトへ出るリンクは 1 つも置きません。** 提供元を利用者に見せないためで、次を守ってください。
 
-- ヘッダー・フッター・診断フォーム・レポートに外部リンクを足さない
+- サイドバー・フッター・診断フォーム・レポートに外部リンクを足さない
 - 診断対象サイトへ送る User-Agent（`src/lib/analyzer/fetch.ts` の `USER_AGENT`）に、提供元が特定できる URL やリポジトリ名を入れない。相手のアクセスログに残ります
 - 画面に出る唯一の外部向け連絡先は `NEXT_PUBLIC_CONTACT_NAME` / `NEXT_PUBLIC_CONTACT_URL`。**運営元自身のもの**を設定してください（未設定なら、そのブロックごと表示されません）
 

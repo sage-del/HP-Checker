@@ -81,12 +81,12 @@ export function Section({ title, children, aside }: { title: ReactNode; children
 
 export function NotConfigured() {
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 md:px-8">
-      <PageTitle title="定期監視" />
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8">
+      <PageTitle title="定期監視" lead="監視サイト・リンク切れ・診断履歴・通知の画面は、保存先を設定すると使えます。" />
       <Callout tone="info" title="監視機能はまだ設定されていません">
         <p>
           診断結果を保存する Postgres の接続文字列を環境変数 <code>DATABASE_URL</code> に設定すると使えるようになります。
-          設定の手順は README の「定期監視」を見てください。
+          設定の状態はサイドバーの「設定」で確認できます。手順は README の「定期監視」を見てください。
         </p>
       </Callout>
     </main>
@@ -203,5 +203,39 @@ export function AlertList({ alerts, showSite = true, empty = "通知はありま
         </li>
       ))}
     </ul>
+  );
+}
+
+export interface StatItem {
+  label: string;
+  value: ReactNode;
+  hint?: ReactNode;
+  tone?: StatusTone;
+  href?: string;
+}
+
+/** ダッシュボード上部の集計カード */
+export function StatCards({ items }: { items: readonly StatItem[] }) {
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {items.map((item) => {
+        const body = (
+          <>
+            <p className="text-[12px] font-bold text-muted">{item.label}</p>
+            <p className={`mt-1 text-2xl font-bold tabular-nums ${item.tone ? TONE_CLASSES[item.tone].text : "text-ink"}`}>{item.value}</p>
+            {item.hint && <p className="mt-0.5 text-[12px] text-muted">{item.hint}</p>}
+          </>
+        );
+        return item.href ? (
+          <Link key={item.label} href={item.href} className="rounded-xl border border-line bg-panel p-4 hover:border-accent">
+            {body}
+          </Link>
+        ) : (
+          <div key={item.label} className="rounded-xl border border-line bg-panel p-4">
+            {body}
+          </div>
+        );
+      })}
+    </div>
   );
 }

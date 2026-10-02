@@ -1,7 +1,7 @@
 /**
  * PWA マニフェスト。ホーム画面に追加したときの名前とアイコンを決める。
  *
- * アイコンの元は src/app/icon.svg（ヘッダーの LogoMark と同じ形）。
+ * アイコンの元は src/app/icon.svg（サイドバーの LogoMark と同じ形）。
  * PNG は scripts/generate-icons.mjs で作り直せる。
  */
 import type { MetadataRoute } from "next";

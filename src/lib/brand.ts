@@ -9,7 +9,7 @@ export const BRAND = {
   name: "サイト健診",
   /** ラテン文字表記（PWA の short_name・英語圏の UA 向け） */
   nameLatin: "Site Kenshin",
-  /** 1 行の説明（ヘッダーの副題・OGP） */
+  /** 1 行の説明（サイドバーの副題・OGP） */
   tagline: "URL を入れるだけの SEO・AIO 無料診断",
   /** 2〜3 行の説明（メタディスクリプション） */
   description:

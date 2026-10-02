@@ -20,8 +20,6 @@ import {
 
 export interface AddSiteState {
   error?: string;
-  /** 送信に成功したらフォームを空にするための通し番号 */
-  done?: number;
 }
 
 const MAX_NAME = 60;
@@ -40,14 +38,16 @@ export async function addSiteAction(_prev: AddSiteState, form: FormData): Promis
   }
   const name = String(form.get("name") ?? "").trim().slice(0, MAX_NAME) || url.hostname;
 
+  let id: number;
   try {
-    await addSite(await getDb(), { url: url.toString(), name, frequency });
+    id = (await addSite(await getDb(), { url: url.toString(), name, frequency })).id;
   } catch (err) {
     if (err instanceof DuplicateSiteError) return { error: err.message };
     throw err;
   }
-  revalidatePath("/monitor");
-  return { done: Date.now() };
+  revalidatePath("/monitor", "layout");
+  // 登録したサイトの詳細へ（そこで「今すぐ診断」できる）
+  redirect(`/monitor/sites/${id}`);
 }
 
 function idOf(form: FormData): number {

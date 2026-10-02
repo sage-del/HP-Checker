@@ -64,3 +64,14 @@ describe("auth", () => {
     expect(isAuthorizedCron(null, undefined, false)).toBe(true);
   });
 });
+
+describe("describeCronJst", () => {
+  it("converts daily and hourly UTC expressions to Japan time", async () => {
+    const { describeCronJst } = await import("../schedule");
+    expect(describeCronJst("0 18 * * *")).toBe("毎日 3:00（日本時間）");
+    expect(describeCronJst("30 2 * * *")).toBe("毎日 11:30（日本時間）");
+    expect(describeCronJst("5 * * * *")).toBe("毎時 05 分");
+    expect(describeCronJst("0 18 * * 1")).toBe("0 18 * * 1（UTC）");
+    expect(describeCronJst("bad")).toBe("bad（UTC）");
+  });
+});

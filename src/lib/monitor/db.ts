@@ -59,6 +59,11 @@ create table if not exists monitor_alerts (
   read_at timestamptz
 );
 create index if not exists monitor_alerts_created_idx on monitor_alerts (created_at desc);
+
+-- 初版は jsonb に JSON を文字列のまま二重に入れていた（store.ts の注記）。文字列になっている値を直す
+update monitor_runs set snapshot = (snapshot #>> '{}')::jsonb where jsonb_typeof(snapshot) = 'string';
+update monitor_runs set result = (result #>> '{}')::jsonb where jsonb_typeof(result) = 'string';
+update monitor_alerts set details = (details #>> '{}')::jsonb where jsonb_typeof(details) = 'string';
 `;
 
 /** テーブルが無ければ作る（何度呼んでもよい） */
