@@ -165,7 +165,10 @@ npm run dev                  # http://localhost:3000
 | `BASIC_AUTH_USER` / `BASIC_AUTH_PASSWORD` | 監視で必須 | サイト全体の Basic 認証（ユーザー名の既定は `admin`） |
 | `CRON_SECRET` | 監視で必須 | Vercel Cron の呼び出しを確かめる合言葉。本番で未設定だと定期診断は動かない |
 | `ALLOW_PRIVATE_HOSTS` | 開発用 | localhost や LAN 内のサイトを診断したいときだけ `1`。**本番では絶対に設定しない** |
-| `GOOGLE_SERVICE_ACCOUNT_JSON` | 自動化で必須 | GoogleサービスアカウントのキーJSON |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | Vercel自動化で必須 | Workload Identityから利用するサービスアカウント |
+| `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` | Vercel自動化で必須 | GoogleのWorkload Identityプロバイダ完全名 |
+| `VERCEL_OIDC_TOKEN` | Vercelが自動設定 | Vercelが実行ごとに発行する短時間のOIDCトークン。手動登録しない |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | ローカル開発用 | JSON鍵が許可される環境だけで使う代替方式。本番では不要 |
 | `GA4_PROPERTY_ID` | 自動化で必須 | GA4の数字のプロパティID（測定IDではありません） |
 | `GSC_SITE_URL` | 自動化で必須 | `sc-domain:example.com` またはURLプレフィックス |
 | `AUTOMATION_API_KEY` | 自動化で必須 | 自動化APIを保護するランダムなBearerキー |
@@ -177,29 +180,31 @@ npm run dev                  # http://localhost:3000
 
 ## GA4・Search Console・Codex 自動化
 
-自社サイトだけを無人実行する用途では、Googleのサービスアカウントを使います。利用者のGoogleログイン操作は不要です。手動診断の画面と `/api/site` は、Google連携を設定しなくても従来どおり動きます。
+自社サイトだけを無人実行する用途では、Googleのサービスアカウントを使います。Vercel本番環境ではWorkload Identity連携を使用し、長期間有効なJSON秘密鍵は保存しません。利用者のGoogleログイン操作は不要です。手動診断の画面と `/api/site` は、Google連携を設定しなくても従来どおり動きます。
 
 ### Google側の準備
 
-1. Google Cloudでプロジェクトを作り、**Google Analytics Data API** と **Google Search Console API** を有効にします。
-2. サービスアカウントを作成し、JSONキーを1つ発行します。JSONはGitHubへ追加しません。
+1. Google Cloudでプロジェクトを作り、**Google Analytics Data API**、**Google Search Console API**、**IAM Service Account Credentials API** を有効にします。
+2. サービスアカウントを作成します。JSONキーは発行しません。
 3. GA4の「管理 → プロパティのアクセス管理」で、サービスアカウントのメールアドレスを**閲覧者**として追加します。
 4. Search Consoleの「設定 → ユーザーと権限」で、同じメールアドレスを**フルユーザー**として追加します。
-5. Vercelのプロジェクト設定で次をProduction環境変数へ追加し、再デプロイします。
+5. Google CloudでVercelチームを発行元とするWorkload IdentityプールとOIDCプロバイダを作り、Vercel本番環境の`subject`だけにサービスアカウントの利用を許可します。
+6. Vercelのプロジェクト設定で次をProduction環境変数へ追加し、再デプロイします。`VERCEL_OIDC_TOKEN`はVercelが自動設定します。
 
 ```text
-GOOGLE_SERVICE_ACCOUNT_JSON={...JSON全体...}
+GOOGLE_SERVICE_ACCOUNT_EMAIL=hp-checker-sage@project-id.iam.gserviceaccount.com
+GOOGLE_WORKLOAD_IDENTITY_AUDIENCE=//iam.googleapis.com/projects/123456789/locations/global/workloadIdentityPools/vercel-hp-checker/providers/vercel
 GA4_PROPERTY_ID=123456789
 GSC_SITE_URL=sc-domain:example.com
 AUTOMATION_API_KEY=十分に長いランダム値
 ```
 
-`GA4_PROPERTY_ID` は `G-XXXXXXXXXX` 形式の測定IDではなく、GA4管理画面の「プロパティ設定」にある数字です。`AUTOMATION_API_KEY` は `openssl rand -hex 32` などで生成できます。
+`GA4_PROPERTY_ID` は `G-XXXXXXXXXX` 形式の測定IDではなく、GA4管理画面の「プロパティ設定」にある数字です。`AUTOMATION_API_KEY` は `openssl rand -hex 32` などで生成できます。ローカル開発では従来の`GOOGLE_SERVICE_ACCOUNT_JSON`も利用できますが、Workload Identityが設定されている本番環境では不要です。
 
 ### API
 
 ```bash
-curl -X POST "https://hp-checker.vercel.app/api/automation/seo-report" \
+curl -X POST "https://hp-checker-sage.vercel.app/api/automation/seo-report" \
   -H "Authorization: Bearer $HP_CHECKER_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"url":"https://www.example.com","maxPages":50}'
@@ -223,19 +228,17 @@ npm run seo:report -- --url "https://www.example.com" --start-date 2026-09-01 --
 
 リポジトリの `AGENTS.md` にこの手順を記載しているため、Codexへ「example.comのSEOレポートを作成して」と指示すると、このAPIを使う前提で作業します。
 
-### 保留中のタスク（会社承認待ち）
+### 導入状況
 
-**状態: 保留。** 利用中のGoogle Cloudアカウントではカード登録が求められており、会社の許可がすぐには下りないため、GA4・Search Consoleの実データ接続はここで停止しています。自動化APIとCodex用CLIの実装は完了していますが、承認が下りるまではGoogle Cloudプロジェクトやサービスアカウントを新たに作成しません。
+- [x] Google Analytics Data APIとGoogle Search Console APIを有効化
+- [x] サービスアカウントを作成し、GA4へ閲覧者、Search Consoleへフルユーザーとして追加
+- [x] Vercel本番環境だけを許可するWorkload IdentityプールとOIDCプロバイダを作成
+- [x] JSON秘密鍵を使わないVercel OIDC認証をアプリに実装
+- [ ] VercelへGoogle識別子、GA4/GSC識別子、`AUTOMATION_API_KEY`を登録して再デプロイ
+- [ ] Codex環境へ`HP_CHECKER_API_KEY`を登録して設定を公開
+- [ ] `npm run seo:report -- --url "対象サイトURL"`で実データ接続を確認
 
-会社の許可が下りたら、次の順番で再開します。
-
-- Google Analytics Data APIとGoogle Search Console APIを有効化する
-- サービスアカウントを作成し、GA4へ閲覧者、Search Consoleへフルユーザーとして追加する
-- Vercelへ `GOOGLE_SERVICE_ACCOUNT_JSON`、`GA4_PROPERTY_ID`、`GSC_SITE_URL`、`AUTOMATION_API_KEY` を登録して再デプロイする
-- Codex環境の `HP_CHECKER_API_KEY` に `AUTOMATION_API_KEY` と同じ値を登録して環境設定を公開する
-- `npm run seo:report -- --url "対象サイトURL"` で実データ接続を確認する
-
-承認待ちの間、`/api/automation/seo-report` が `AUTOMATION_API_KEY が設定されていません` と返すのは想定どおりです。サービスアカウントのJSONキーやAPIキーは、README・GitHub・チャットには保存しません。
+サービスアカウントのJSONキーやAPIキーは、README・GitHub・チャットには保存しません。
 
 ---
 

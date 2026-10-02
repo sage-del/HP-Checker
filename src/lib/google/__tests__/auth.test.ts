@@ -26,8 +26,10 @@ describe("readGoogleConfig", () => {
     });
     expect(config.ga4PropertyId).toBe("123456789");
     expect(config.gscSiteUrl).toBe("sc-domain:example.com");
-    expect(config.credentials.client_email).toContain("gserviceaccount.com");
-    expect(config.credentials.private_key).toContain("\nTEST\n");
+    expect(config.auth.kind).toBe("service-account-key");
+    if (config.auth.kind !== "service-account-key") throw new Error("unexpected auth kind");
+    expect(config.auth.credentials.client_email).toContain("gserviceaccount.com");
+    expect(config.auth.credentials.private_key).toContain("\nTEST\n");
   });
 
   it("不足・不正な設定は秘密値を含めずに拒否する", () => {
@@ -62,5 +64,44 @@ describe("readGoogleConfig", () => {
     await expect(getGoogleAccessToken(config, Date.UTC(2026, 9, 2))).resolves.toBe("token-for-test");
     await expect(getGoogleAccessToken(config, Date.UTC(2026, 9, 2, 0, 1))).resolves.toBe("token-for-test");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("Vercel OIDCをGoogle STSで交換し、サービスアカウントの一時トークンを取得する", async () => {
+    const audience =
+      "//iam.googleapis.com/projects/654210782577/locations/global/workloadIdentityPools/vercel-hp-checker/providers/vercel";
+    const config = readGoogleConfig({
+      VERCEL_OIDC_TOKEN: "vercel-oidc-token-for-test",
+      GOOGLE_SERVICE_ACCOUNT_EMAIL:
+        "hp-checker-sage@example-project.iam.gserviceaccount.com",
+      GOOGLE_WORKLOAD_IDENTITY_AUDIENCE: audience,
+      GA4_PROPERTY_ID: "123456789",
+      GSC_SITE_URL: "sc-domain:example.com",
+    });
+    expect(config.auth.kind).toBe("workload-identity");
+
+    const now = Date.UTC(2026, 9, 2);
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockImplementationOnce(async (_input, init) => {
+        const body = new URLSearchParams(String(init?.body));
+        expect(body.get("audience")).toBe(audience);
+        expect(body.get("subject_token")).toBe("vercel-oidc-token-for-test");
+        expect(body.get("subject_token_type")).toBe("urn:ietf:params:oauth:token-type:jwt");
+        return Response.json({ access_token: "federated-token", expires_in: 3600 });
+      })
+      .mockImplementationOnce(async (input, init) => {
+        expect(String(input)).toContain("iamcredentials.googleapis.com");
+        expect(init?.headers).toMatchObject({ authorization: "Bearer federated-token" });
+        expect(JSON.parse(String(init?.body))).toMatchObject({ lifetime: "3600s" });
+        return Response.json({
+          accessToken: "impersonated-token",
+          expireTime: "2026-10-02T01:00:00.000Z",
+        });
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getGoogleAccessToken(config, now)).resolves.toBe("impersonated-token");
+    await expect(getGoogleAccessToken(config, now + 60_000)).resolves.toBe("impersonated-token");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

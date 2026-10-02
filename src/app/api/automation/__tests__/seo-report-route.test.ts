@@ -48,6 +48,7 @@ describe("/api/automation/seo-report", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
       ready: true,
+      authMode: "service-account-key",
       ga4PropertyId: "123456789",
       gscSiteUrl: "sc-domain:example.com",
     });

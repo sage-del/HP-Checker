@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
     return Response.json(
       {
         ready: true,
+        authMode: config.auth.kind,
         ga4PropertyId: config.ga4PropertyId,
         gscSiteUrl: config.gscSiteUrl,
       },
