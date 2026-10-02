@@ -1,0 +1,269 @@
+@import "tailwindcss";
+
+/*
+  デザイントークン（docs/dev/design-spec.md §1）。
+  値は hex リテラルで書く。src/lib/ui/palette.ts に同じ値の写しがあり、
+  vitest（src/lib/ui/__tests__/palette.test.ts）が一致を検証する。
+  紫（元ツール #5b4de0）系は定義しない。
+
+  ライト基調の SaaS トーン。ブランド色はロゴと同じネイビー、アクセントはティール。
+  chart-1〜6 はカテゴリ識別用で、色覚多様性を含む識別性を検証して選んである
+  （明度帯・彩度下限・隣接ペアの ΔE・地色とのコントラスト比をすべて満たす）。
+*/
+@theme {
+  --color-surface: #f6f8f9;
+  --color-panel: #ffffff;
+  --color-ink: #111c22;
+  --color-muted: #5a6a75;
+  --color-line: #e2e8ec;
+  --color-brand: #1b3a63;
+  --color-on-brand: #ffffff;
+  --color-on-brand-muted: #a9bcd4;
+  --color-accent: #00786d;
+  --color-accent-strong: #005f56;
+  --color-accent-soft: #e3f3f0;
+  --color-secondary: #5a6a75;
+  --color-pass: #15803d;
+  --color-pass-soft: #e7f5ec;
+  --color-warn: #a35a00;
+  --color-warn-soft: #fbf0df;
+  --color-fail: #b91c1c;
+  --color-fail-soft: #fbeaea;
+  --color-info: #1d4ed8;
+  --color-info-soft: #e8eefc;
+  --color-chart-1: #00897c;
+  --color-chart-2: #c2410c;
+  --color-chart-3: #2563eb;
+  --color-chart-4: #a21caf;
+  --color-chart-5: #65a30d;
+  --color-chart-6: #0891b2;
+  --color-chart-track: #eef2f4;
+  --color-chart-grid: #e2e8ec;
+  --color-grade-a: #0f7a43;
+  --color-grade-b: #3f7a33;
+  --color-grade-c: #a35a00;
+  --color-grade-d: #b4531b;
+  --color-grade-e: #b91c1c;
+  --font-sans:
+    "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic",
+    "Meiryo", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "palt";
+}
+
+/* 画面では隠し、PDF（印刷）にだけ出す要素 */
+.print-only {
+  display: none;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   「PDFでダウンロード」用。画面外に作った複製にだけ当たるスタイル。
+   印刷（下の @media print）と違い、こちらは画面の見た目をそのまま画像に
+   するので、カードの背景や枠は残したままにする。
+   ───────────────────────────────────────────────────────────── */
+.pdf-capture {
+  background: var(--color-surface);
+}
+/* ─────────────────────────────────────────────────────────────
+   PDF の複製では、字幅を変える OpenType 機能をすべて切る。
+
+   html2canvas-pro は文字列を分割して「DOM で実測した各断片の位置」に
+   ctx.fillText で描くが、canvas の font 文字列に渡せるのは
+   style / variant(normal・small-caps) / weight / size / family だけで、
+   font-feature-settings と font-variant-numeric は渡らない
+   （node_modules/html2canvas-pro/dist/lib/render/canvas/text-renderer.js の
+   createFontStyle で確認）。
+
+   その結果、DOM は palt で詰めた狭い幅で位置を決めるのに、canvas は
+   詰めていない広い字形を描くことになり、（ ） ・ 。 のような全角の
+   約物が次の文字に重なる。Hiragino Sans のように palt を持つフォントで
+   だけ起きるので、環境によって出たり出なかったりする。
+
+   ここで normal に戻すと、複製側のレイアウトが canvas の描画結果と
+   一致する。画面表示（body の palt）は変えない。
+   数値列の桁揃えは text-right で行っているので tabular-nums を
+   切っても崩れない。
+   ───────────────────────────────────────────────────────────── */
+.pdf-capture,
+.pdf-capture * {
+  font-feature-settings: normal !important;
+  font-variant-numeric: normal !important;
+}
+/* 複製されたレポートルート（<main> でも <div ref> でも）の外側余白を外す */
+.pdf-capture main,
+.pdf-capture > * {
+  max-width: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.pdf-capture .no-print {
+  display: none !important;
+}
+.pdf-capture .print-only {
+  display: block !important;
+}
+/* 画面では横スクロール・高さ制限で隠れている部分も、PDF には全部出す */
+.pdf-capture .overflow-x-auto {
+  overflow: visible !important;
+}
+.pdf-capture table {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+.pdf-capture pre {
+  max-height: none !important;
+  overflow: visible !important;
+  white-space: pre-wrap !important;
+  word-break: break-all;
+}
+.pdf-capture .line-clamp-2 {
+  -webkit-line-clamp: unset !important;
+  display: block !important;
+  overflow: visible !important;
+}
+
+/* ─────────────────────────────────────────────────────────────
+   PDF で保存 ＝ ブラウザの印刷ダイアログから「PDF に保存」する。
+   画面用のレイアウトのまま印刷すると、1 ページ目がほぼ空白になる／
+   表やコードが途中で切れる／背景色が出ない、といった問題が起きるので
+   紙用に組み直す。
+   ───────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  /* html の height:100% と body の flex を印刷時だけ解除する。
+     これが残っていると Safari / Firefox で 2 ページ目以降が出力されない。 */
+  html,
+  body {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  /* 印刷ダイアログの「背景のグラフィック」は既定で off。
+     off のままでもスコアの色やアイコンの下地が消えないようにする。 */
+  html {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    /* A4 の紙幅は画面のレイアウト幅より狭いので少しだけ詰める */
+    font-size: 14px;
+  }
+
+  /* アプリシェル（サイドバー + トップバー + main のグリッド）を通常フローに戻す。
+     グリッド・sticky・h-screen が残ると 1 ページ目で切れる。 */
+  .app-shell {
+    display: block !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* 余白は @page 側で取るので、画面用の中央寄せ・パディングは外す */
+  main {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* サイドバー・トップバー・ドロワー・フォームなど画面専用の要素 */
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+
+  /* カードの枠・影・背景は紙では邪魔なので外し、余白だけで区切る。
+     break-inside: avoid は付けない。1 ページに収まらないカードが
+     まるごと次ページへ送られ、大きな空白が生まれるため。 */
+  .print-card {
+    background: transparent !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    margin-top: 1.5rem !important;
+    break-inside: auto;
+  }
+
+  /* 見出しだけがページ末尾に取り残されないようにする */
+  h1,
+  h2,
+  h3,
+  h4 {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  /* 診断項目・表の行は途中で切らない */
+  li,
+  tr,
+  dl > div {
+    break-inside: avoid;
+  }
+
+  /* 画面では横スクロールさせている表を、紙では全列見せる */
+  .overflow-x-auto {
+    overflow: visible !important;
+  }
+  table {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+
+  /* JSON-LD / HTML の出力は max-height で切られていて紙では続きが
+     読めないので、折り返して全文出す。黒地に白はインクを食うため白地に戻す。 */
+  pre {
+    max-height: none !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    word-break: break-all;
+    background: var(--color-surface) !important;
+    color: var(--color-ink) !important;
+    border: 1px solid var(--color-line);
+  }
+  pre code {
+    color: inherit !important;
+  }
+
+  /* title の line-clamp-2 など、紙で情報が欠けるものは解除する */
+  .line-clamp-2 {
+    -webkit-line-clamp: unset !important;
+    display: block !important;
+    overflow: visible !important;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
+
+/* 進捗バー（不定）の往復アニメーション。no-print 領域でのみ使う */
+@keyframes seo-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(333%);
+  }
+}
+.progress-indeterminate {
+  animation: seo-indeterminate 1.4s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress-indeterminate {
+    animation: none;
+    transform: translateX(117%);
+  }
+}
