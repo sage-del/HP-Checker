@@ -31,7 +31,15 @@ export interface DiagnosisSnapshot {
   categories: Partial<Record<CategoryId, number>>;
   /** 重大・警告・情報のあった項目（id → 最も悪い判定・ラベル・該当ページ数） */
   issues: Record<string, { status: Exclude<CheckStatus, "pass">; label: string; pages: number }>;
+  /**
+   * リンク切れの URL（リンク切れを確かめた診断だけ。上限 MAX_BROKEN_IN_SNAPSHOT 件）。
+   * 無い = 確かめていない。前回との比較で「新たに切れたリンク」を出すために使う。
+   */
+  brokenLinks?: string[];
 }
+
+/** スナップショットに残すリンク切れ URL の上限 */
+export const MAX_BROKEN_IN_SNAPSHOT = 200;
 
 export function snapshotOf(result: SiteAnalysisResult): DiagnosisSnapshot {
   const counts = { fail: 0, warn: 0, info: 0 };
@@ -57,6 +65,9 @@ export function snapshotOf(result: SiteAnalysisResult): DiagnosisSnapshot {
     counts,
     categories: Object.fromEntries((result.categories ?? []).map((c) => [c.id, c.score])),
     issues,
+    ...(result.links
+      ? { brokenLinks: result.links.broken.slice(0, MAX_BROKEN_IN_SNAPSHOT).map((b) => b.url) }
+      : {}),
   };
 }
 
