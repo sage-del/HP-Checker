@@ -1,6 +1,8 @@
 import { crawlSite, PAGE_TIMEOUT_MS, resolveMaxPages } from "@/lib/crawl/crawler";
 import type { CrawlProgress } from "@/lib/crawl/types";
 import { canonicalizeUrl, pathDepth } from "@/lib/crawl/url";
+import { checkLinks } from "@/lib/links/check";
+import { extractRefs, RefCollector } from "@/lib/links/extract";
 import { analyzeFetched, assertHtmlPage } from "./index";
 import { assertPublicHost, FetchError, fetchText, normalizeUrl, PAGE_MAX_BYTES } from "./fetch";
 import { fetchSiteFiles } from "./robots";
@@ -72,6 +74,11 @@ export interface AnalyzeSiteOptions {
   signal?: AbortSignal;
   /** 1 ページ処理するごとに呼ばれる */
   onProgress?: (progress: SiteProgress) => void;
+  /**
+   * サイト内のリンク切れ（ページ・画像・CSS・JS）も確かめる。クロールの後に、
+   * クロールで取得しなかった参照先へ HEAD を出す。`timeBudgetMs` はその時間予算。
+   */
+  checkLinks?: boolean | { timeBudgetMs?: number };
 }
 
 /**
@@ -114,6 +121,7 @@ export async function analyzeSite(
   const files = await fetchSiteFiles(origin);
 
   const analyses: { url: string; result: AnalysisResult }[] = [];
+  const refs = options.checkLinks ? new RefCollector() : null;
   const progress = (p: CrawlProgress) => {
     options.onProgress?.({ ...p, analyzed: analyses.length });
   };
@@ -129,6 +137,10 @@ export async function analyzeSite(
     signal: options.signal,
     onProgress: progress,
     visit: (page, url) => {
+      if (refs) {
+        const source = canonicalizeUrl(page.finalUrl) ?? url;
+        refs.add(source, extractRefs(page.body, page.finalUrl || url, origin));
+      }
       const result = analyzeFetched(page, files, { requestedUrl: url });
       // 本文（mainText）は落として積む（design-spec §9.1）。
       // 集計に使うのは categories と PageSnapshot の数値だけで、数百ページ分の本文を
@@ -231,6 +243,21 @@ export async function analyzeSite(
   }
   notes.push(...crawl.notes);
 
+  let links: SiteAnalysisResult["links"];
+  if (refs && !options.signal?.aborted) {
+    links = await checkLinks({
+      targets: refs.targets,
+      known: crawl.statuses,
+      timeBudgetMs: typeof options.checkLinks === "object" ? options.checkLinks.timeBudgetMs : undefined,
+      signal: options.signal,
+    });
+    if (links.unchecked > 0) {
+      notes.push(
+        `サイト内の参照先 ${fmt(links.found)} 件のうち ${fmt(links.unchecked)} 件は、上限・制限時間のためリンク切れを確かめていません`,
+      );
+    }
+  }
+
   return {
     entryUrl: entry.toString(),
     origin,
@@ -254,6 +281,7 @@ export async function analyzeSite(
       linkCount: crawl.linkCount,
       maxPages,
     },
+    ...(links ? { links } : {}),
     notes,
     fetchedAt: new Date().toISOString(),
   };

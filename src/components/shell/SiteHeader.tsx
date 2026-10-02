@@ -1,16 +1,21 @@
 import Link from "next/link";
+import { UnreadBell } from "@/components/monitor/UnreadBell";
 import { BRAND } from "@/lib/brand";
+import { isMonitorConfigured } from "@/lib/monitor/db";
 import { LogoMark } from "./LogoMark";
 
 /**
- * 全ページ共通のヘッダー。機能が 1 本なのでナビゲーションは持たず、
- * ブランドと「無料」であることだけを示す。
+ * 全ページ共通のヘッダー。ブランドを示し、監視機能（DATABASE_URL）が有効なときだけ
+ * 「診断 / 監視」の切り替えと通知のベルを出す。無効なら「無料」の印だけを出す。
  *
  * 外部サイトへのリンクは置かない（OEM 提供のため、利用者を運営元以外へ
  * 送る導線を画面に出さない）。
  * 印刷 / PDF では no-print で消える。
  */
 export function SiteHeader() {
+  const monitor = isMonitorConfigured();
+  const navClass =
+    "rounded-lg px-2.5 py-1.5 text-[13px] font-bold text-muted outline-none hover:bg-surface hover:text-ink focus-visible:ring-2 focus-visible:ring-accent/40";
   return (
     <header className="no-print sticky top-0 z-20 border-b border-line bg-panel/90 backdrop-blur">
       <div className="mx-auto flex h-14 w-full max-w-3xl items-center gap-3 px-4 md:px-8">
@@ -28,9 +33,21 @@ export function SiteHeader() {
           </span>
         </Link>
 
-        <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">
-          無料
-        </span>
+        {monitor ? (
+          <nav className="ml-auto flex shrink-0 items-center gap-1" aria-label="メニュー">
+            <Link href="/" className={navClass}>
+              診断
+            </Link>
+            <Link href="/monitor" className={navClass}>
+              監視
+            </Link>
+            <UnreadBell />
+          </nav>
+        ) : (
+          <span className="ml-auto shrink-0 rounded-full bg-accent-soft px-2 py-0.5 text-[11px] font-bold text-accent">
+            無料
+          </span>
+        )}
 
       </div>
     </header>

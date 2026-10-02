@@ -75,6 +75,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
   const queue: string[] = [];
   const failures: CrawlFailure[] = [];
   const visitedUrls: string[] = [];
+  const statuses = new Map<string, number>();
   const notes: string[] = [];
   let fetched = 0;
   let dequeued = 0;
@@ -173,22 +174,25 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
         report("crawl", url);
         return;
       }
+      statuses.set(url, 0);
       failures.push({
         url,
         message: err instanceof FetchError ? err.message : "ページの取得に失敗しました",
+        status: 0,
       });
       report("crawl", url);
       return;
     }
     fetched += 1;
+    statuses.set(url, page.status);
 
     if (page.status === 0) {
-      failures.push({ url, message: "ページに接続できませんでした" });
+      failures.push({ url, message: "ページに接続できませんでした", status: 0 });
       report("crawl", url);
       return;
     }
     if (!page.ok) {
-      failures.push({ url, message: `ページの取得に失敗しました（HTTP ${page.status}）` });
+      failures.push({ url, message: `ページの取得に失敗しました（HTTP ${page.status}）`, status: page.status });
       report("crawl", url);
       return;
     }
@@ -253,6 +257,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
     visited,
     skipped,
     failures,
+    statuses,
     sitemapCount,
     linkCount,
     sitemapFiles,

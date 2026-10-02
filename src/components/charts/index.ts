@@ -5,3 +5,4 @@ export { Histogram, type HistogramBand, type HistogramProps } from "./Histogram"
 export { SegmentBar, type SegmentBarSegment } from "./SegmentBar";
 export { HeatCell, type HeatCellProps } from "./HeatCell";
 export * from "./math";
+export { LineChart, type LineChartProps, type LinePoint } from "./LineChart";

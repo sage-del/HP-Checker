@@ -21,6 +21,8 @@ export interface CrawlProgress {
 export interface CrawlFailure {
   url: string;
   message: string;
+  /** HTTP ステータス（応答があったときだけ。0 = 接続できなかった） */
+  status?: number;
 }
 
 export type CrawlTruncation = { reason: "max-pages" | "time-budget"; limit: number };
@@ -37,6 +39,11 @@ export interface CrawlResult {
   /** 非 HTML・別オリジンへのリダイレクト・重複などで診断対象外にした数 */
   skipped: number;
   failures: CrawlFailure[];
+  /**
+   * 取得を試みた URL（待ち行列の URL）→ HTTP ステータス。0 = 接続できなかった・時間切れ。
+   * リンク切れの検出で、クロール済みの URL を取り直さないために使う。
+   */
+  statuses: Map<string, number>;
   /** サイトマップ由来の URL 数 */
   sitemapCount: number;
   /** サイトマップに無く、内部リンクからだけ見つかった URL 数 */

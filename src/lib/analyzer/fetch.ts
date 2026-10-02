@@ -297,6 +297,47 @@ export async function fetchText(
   }
 }
 
+/**
+ * URL の HTTP ステータスだけを確かめる（リンク切れの検出用）。本文は読まない。
+ *
+ * まず HEAD で聞き、HEAD を受け付けないサーバー（405 / 501）には GET で聞き直して
+ * ヘッダーを受け取った時点で本文を捨てる。リダイレクトは fetchText と同じく自分で追い、
+ * 毎回 assertPublicHost を通す。接続できない・時間切れは status 0 を返す（投げない）。
+ * 内部アドレスへの転送だけは `blocked_host` の FetchError を投げる（呼び出し側で読み飛ばす）。
+ */
+export async function fetchStatus(
+  url: string,
+  options: { timeoutMs?: number; signal?: AbortSignal } = {},
+): Promise<{ status: number; finalUrl: string }> {
+  const ask = async (method: "HEAD" | "GET") => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), options.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    const onAbort = () => controller.abort();
+    options.signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const { res, finalUrl } = await fetchFollowingRedirects(url, {
+        method,
+        headers: { "user-agent": USER_AGENT, accept: "*/*", "accept-language": "ja,en;q=0.8" },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+      res.body?.cancel().catch(() => {});
+      return { status: res.status, finalUrl: finalUrl || url };
+    } finally {
+      clearTimeout(timer);
+      options.signal?.removeEventListener("abort", onAbort);
+    }
+  };
+  try {
+    const head = await ask("HEAD");
+    if (head.status !== 405 && head.status !== 501) return head;
+    return await ask("GET");
+  } catch (err) {
+    if (err instanceof FetchError && err.code === "blocked_host") throw err;
+    return { status: 0, finalUrl: url };
+  }
+}
+
 /** Content-Type / meta charset を見て文字コードを決めてデコードする */
 function decodeBody(bytes: Uint8Array, contentType: string): string {
   const fromHeader = /charset=([\w-]+)/i.exec(contentType)?.[1];

@@ -1,3 +1,5 @@
+import type { LinkCheckResult } from "@/lib/links/types";
+
 /**
  * 診断結果の型定義。
  *
@@ -214,6 +216,11 @@ export interface SiteAnalysisResult {
   discovery: SiteDiscovery;
   /** クロールの統計（何件見つけ、何件取得し、どこで打ち切ったか） */
   crawl: SiteCrawlStats;
+  /**
+   * サイト内のリンク切れ（`checkLinks` を指定したときだけ。採点には使わない）。
+   * 無い = 確かめていない（「リンク切れ 0 件」と混同しない）。
+   */
+  links?: LinkCheckResult;
   notes: string[];
   fetchedAt: string;
 }
