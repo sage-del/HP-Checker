@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { BRAND } from "@/lib/brand";
+import { isMonitorConfigured } from "@/lib/monitor/db";
+import { Sidebar } from "./Sidebar";
 import { SiteFooter } from "./SiteFooter";
-import { SiteHeader } from "./SiteHeader";
 
 export interface AppShellProps {
   children: ReactNode;
@@ -9,21 +11,21 @@ export interface AppShellProps {
 }
 
 /**
- * 全ページ共通のシェル。上にヘッダー、下にフッター、その間は中央 1 カラム。
+ * 全ページ共通の管理画面シェル。左に機能ごとのタブ（Sidebar）、右に画面本体とフッター。
+ * スマホではサイドバーが上部のバー + ドロワーになる。
  *
- * 以前はサイドバー付きのグリッドだったが、画面が無料診断の 1 本だけになったので
- * ナビゲーションを持たない縦積みにした。状態を持たないのでサーバーコンポーネント。
- *
- * <main> について: 無料診断（/）の Checker は自分の <main> を持ち、それを PDF 化の
- * 対象にしている。二重の <main> を避けるため、ここでは <main> を作らずに
- * 画面側へ委ねる（印刷時の余白は globals.css の @media print が main に当てる）。
+ * <main> について: 各画面が自分の <main> を持つ（無料診断の Checker はそれを PDF 化の
+ * 対象にしている）。二重の <main> を避けるため、ここでは <main> を作らない
+ * （印刷時は globals.css の @media print が .app-shell を通常フローに戻し、サイドバーを消す）。
  */
 export function AppShell({ children, version }: AppShellProps) {
   return (
-    <div className="app-shell flex min-h-screen flex-col print:block print:min-h-0">
-      <SiteHeader />
-      <div className="flex-1">{children}</div>
-      <SiteFooter version={version} />
+    <div className="app-shell flex min-h-screen flex-col md:flex-row print:block print:min-h-0">
+      <Sidebar name={BRAND.name} tagline={BRAND.tagline} monitorEnabled={isMonitorConfigured()} />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="flex-1">{children}</div>
+        <SiteFooter version={version} />
+      </div>
     </div>
   );
 }

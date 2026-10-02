@@ -27,7 +27,7 @@ export default async function RunPage({ params }: { params: Promise<{ id: string
     run.snapshot && lastSuccess?.snapshot ? compareSnapshots(lastSuccess.snapshot, run.snapshot) : null;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 md:px-8">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8">
       <PageTitle
         back={{ href: `/monitor/sites/${site.id}`, label: site.name }}
         title={`${formatJst(run.startedAt)} の診断`}

@@ -42,9 +42,9 @@ export default async function SitePage({ params }: { params: Promise<{ id: strin
   const trend = [...runs].reverse().map((r) => ({ label: formatJstShort(r.startedAt), value: r.status === "success" ? r.overall : null }));
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 md:px-8">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8">
       <PageTitle
-        back={{ href: "/monitor", label: "定期監視" }}
+        back={{ href: "/monitor", label: "ダッシュボード" }}
         title={site.name}
         lead={site.url}
         actions={<RunNowButton siteId={site.id} />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState } from "react";
 import { addSiteAction, type AddSiteState } from "@/app/monitor/actions";
 import { Button, Field, Input } from "@/components/ui";
 import { FREQUENCIES, FREQUENCY_LABEL } from "@/lib/monitor/schedule";
@@ -8,13 +8,9 @@ import { FREQUENCIES, FREQUENCY_LABEL } from "@/lib/monitor/schedule";
 /** 監視するサイトを登録するフォーム */
 export function AddSiteForm() {
   const [state, action, pending] = useActionState<AddSiteState, FormData>(addSiteAction, {});
-  const formRef = useRef<HTMLFormElement>(null);
-  useEffect(() => {
-    if (state.done) formRef.current?.reset();
-  }, [state.done]);
 
   return (
-    <form ref={formRef} action={action} className="grid gap-4 rounded-xl border border-line bg-panel p-5 md:grid-cols-[1fr_12rem]">
+    <form action={action} className="grid gap-4 rounded-xl border border-line bg-panel p-5 md:grid-cols-[1fr_12rem]">
       <Field label="サイトの URL" htmlFor="monitor-url" error={state.error} className="md:col-span-2">
         <Input id="monitor-url" name="url" type="text" inputMode="url" placeholder="https://example.co.jp/" required invalid={!!state.error} />
       </Field>

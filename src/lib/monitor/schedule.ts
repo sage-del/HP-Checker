@@ -48,3 +48,19 @@ export function dueSites<T extends ScheduledSite>(sites: readonly T[], now: Date
     .filter((s) => isDue(s, now))
     .sort((a, b) => (a.lastRunAt?.getTime() ?? 0) - (b.lastRunAt?.getTime() ?? 0));
 }
+
+/**
+ * Cron 式（UTC）を日本時間の説明に直す（設定画面の表示用）。
+ * 「分 時 * * *」（毎日）と「分 * * * *」（毎時）だけを読み、それ以外は式のまま返す。
+ */
+export function describeCronJst(expr: string): string {
+  const f = expr.trim().split(/\s+/);
+  if (f.length !== 5 || f.slice(2).some((x) => x !== "*")) return `${expr}（UTC）`;
+  const minute = Number(f[0]);
+  if (!Number.isInteger(minute) || minute < 0 || minute > 59) return `${expr}（UTC）`;
+  const mm = String(minute).padStart(2, "0");
+  if (f[1] === "*") return `毎時 ${mm} 分`;
+  const hour = Number(f[1]);
+  if (!Number.isInteger(hour) || hour < 0 || hour > 23) return `${expr}（UTC）`;
+  return `毎日 ${(hour + 9) % 24}:${mm}（日本時間）`;
+}

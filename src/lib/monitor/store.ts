@@ -6,6 +6,7 @@
  * 推移のグラフと前回比較は要約で足りるため。
  */
 import type { SiteAnalysisResult } from "@/lib/analyzer/types";
+import type { LinkCheckResult } from "@/lib/links/types";
 import type { DiagnosisSnapshot } from "@/lib/report/history";
 import type { AlertDraft, AlertSeverity } from "./alerts";
 import type { Db } from "./db";
@@ -65,6 +66,9 @@ export interface MonitorAlert {
   createdAt: Date;
   readAt: Date | null;
 }
+
+// jsonb の値は JSON.stringify した文字列を `$n::text::jsonb` で渡す。`$n::jsonb` だと
+// postgres（porsager/postgres）が文字列をもう一度 JSON にして、JSON の「文字列」として保存してしまう。
 
 // ---------------------------------------------------------------------------
 // 行 → 型
@@ -229,7 +233,7 @@ export async function saveRun(db: Db, run: NewRun): Promise<number> {
   const rows = await db.query<{ id: number }>(
     `insert into monitor_runs
        (site_id, trigger, started_at, finished_at, status, error, overall, page_count, broken_count, snapshot, result)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::text::jsonb, $11::text::jsonb)
      returning id`,
     [
       run.siteId,
@@ -279,6 +283,57 @@ export async function listRuns(db: Db, siteId: number, limit = 60): Promise<RunS
   return rows.map(runFromRow);
 }
 
+export interface RunWithSite extends RunSummary {
+  siteName: string;
+  siteUrl: string;
+}
+
+/** 全サイトの診断の記録（新しい順。レポート本体は含めない） */
+export async function listRecentRuns(
+  db: Db,
+  options: { siteId?: number; status?: RunStatus; limit?: number } = {},
+): Promise<RunWithSite[]> {
+  const where: string[] = [];
+  const params: unknown[] = [];
+  if (options.siteId !== undefined) where.push(`r.site_id = $${params.push(options.siteId)}`);
+  if (options.status !== undefined) where.push(`r.status = $${params.push(options.status)}`);
+  params.push(options.limit ?? 100);
+  const rows = await db.query(
+    `select ${RUN_COLUMNS.split(", ").map((c) => `r.${c}`).join(", ")}, s.name as site_name, s.url as site_url
+     from monitor_runs r join monitor_sites s on s.id = r.site_id
+     ${where.length ? `where ${where.join(" and ")}` : ""}
+     order by r.started_at desc, r.id desc limit $${params.length}`,
+    params,
+  );
+  return rows.map((r) => ({ ...runFromRow(r), siteName: String(r.site_name), siteUrl: String(r.site_url) }));
+}
+
+export interface SiteLinks {
+  site: MonitorSite;
+  /** リンク切れを確かめた最新の成功した回（無ければ null） */
+  run: RunSummary | null;
+  links: LinkCheckResult | null;
+}
+
+/** サイトごとの、最新の成功した回のリンク切れ（レポート本体の links だけを取り出す） */
+export async function latestLinksBySite(db: Db): Promise<SiteLinks[]> {
+  const sites = await listSites(db);
+  const rows = await db.query(
+    `select distinct on (site_id) ${RUN_COLUMNS}, result -> 'links' as links
+     from monitor_runs where status = 'success' and result is not null
+     order by site_id, started_at desc, id desc`,
+  );
+  const bySite = new Map(rows.map((r) => [Number(r.site_id), r]));
+  return sites.map((site) => {
+    const row = bySite.get(site.id);
+    return {
+      site,
+      run: row ? runFromRow(row) : null,
+      links: row ? toJson<LinkCheckResult>(row.links) : null,
+    };
+  });
+}
+
 export async function getRun(db: Db, id: number): Promise<RunDetail | null> {
   const rows = await db.query(`select ${RUN_COLUMNS}, result from monitor_runs where id = $1`, [id]);
   if (!rows[0]) return null;
@@ -318,7 +373,7 @@ export async function previousRuns(
 export async function addAlerts(db: Db, siteId: number, runId: number | null, alerts: readonly AlertDraft[]): Promise<void> {
   for (const a of alerts) {
     await db.query(
-      `insert into monitor_alerts (site_id, run_id, severity, title, details) values ($1, $2, $3, $4, $5::jsonb)`,
+      `insert into monitor_alerts (site_id, run_id, severity, title, details) values ($1, $2, $3, $4, $5::text::jsonb)`,
       [siteId, runId, a.severity, a.title, JSON.stringify(a.details)],
     );
   }

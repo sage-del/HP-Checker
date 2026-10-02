@@ -19,9 +19,8 @@ export default async function AlertsPage({ searchParams }: { searchParams: Promi
     `rounded-lg px-3 py-1.5 text-sm font-bold ${active ? "bg-accent-soft text-accent" : "text-muted hover:text-ink"}`;
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-4 py-8 md:px-8">
+    <main className="mx-auto w-full max-w-5xl px-4 py-8 md:px-8">
       <PageTitle
-        back={{ href: "/monitor", label: "定期監視" }}
         title="通知"
         lead="定期診断で前回より悪くなった点・直った点をお知らせします。"
         actions={
