@@ -213,5 +213,14 @@ function NavIcon({ name, className }: { name: NavIconName; className?: string })
           <circle cx="8" cy="17" r="2" />
         </svg>
       );
+    case "system":
+      return (
+        <svg {...common} strokeLinecap="round" strokeLinejoin="round">
+          <rect x="8" y="3" width="8" height="5" rx="1.5" />
+          <rect x="3" y="16" width="7" height="5" rx="1.5" />
+          <rect x="14" y="16" width="7" height="5" rx="1.5" />
+          <path d="M12 8v4M6.5 16v-4h11v4" />
+        </svg>
+      );
   }
 }

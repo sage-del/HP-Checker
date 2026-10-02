@@ -2,7 +2,7 @@
  * 左サイドバーのメニュー（唯一の定義）。機能ごとに 1 タブ。
  * 画面を増やしたらここに足す。アイコンは Sidebar.tsx の NavIcon が名前で引く。
  */
-export type NavIconName = "diagnose" | "dashboard" | "add" | "links" | "history" | "alerts" | "settings";
+export type NavIconName = "diagnose" | "dashboard" | "add" | "links" | "history" | "alerts" | "system" | "settings";
 
 export interface NavItem {
   href: string;
@@ -36,7 +36,10 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   },
   {
     label: "システム",
-    items: [{ href: "/settings", label: "設定", icon: "settings" }],
+    items: [
+      { href: "/system", label: "システム構成", icon: "system" },
+      { href: "/settings", label: "設定", icon: "settings" },
+    ],
   },
 ];
 

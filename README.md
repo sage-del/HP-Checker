@@ -2,7 +2,7 @@
 
 URL を入れるだけで、検索エンジンと AI 検索（AIO）に読まれる土台をルールベースで採点する Next.js アプリです。総合スコアと改善提案を報告書にまとめ、PDF で持ち帰れます。
 
-**API キーもログインも不要**で、そのまま公開して使えます。生成 AI は使わず、外部の API も呼びません。
+基本のサイト診断は **API キーもログインも不要**で、そのまま公開して使えます。生成 AI は使いません。GA4・Search Console連携と定期監視は任意機能で、設定しなければ基本診断だけが動きます。
 
 ```bash
 npm install
@@ -26,6 +26,7 @@ npm run dev                  # http://localhost:3000
 | リンク切れ | `/monitor/links` | 全監視サイトの最新のリンク切れ |
 | 診断履歴 | `/monitor/runs` | 全サイトの診断の記録（サイト・結果で絞り込み） |
 | 通知 | `/monitor/alerts` | ツール内の通知（未読 / すべて）。タブに未読数のバッジ |
+| システム構成 | `/system` | 構成図、連携API・サービス、内部API、再現手順、更新ルール |
 | 設定 | `/settings` | 保存先の接続・ログイン・Cron・上限などの状態（値そのものは表示しない） |
 
 | パス | 内容 |
@@ -37,6 +38,60 @@ npm run dev                  # http://localhost:3000
 | `/api/monitor/alerts/unread` | 未読の通知数（サイドバーの「通知」タブのバッジ） |
 | `/api/cron/monitor` | 定期診断（Vercel Cron が呼ぶ） |
 | `/api/automation/seo-report` | サイト診断・GA4・GSCを統合するCodex向けAPI（Bearer認証） |
+
+---
+
+<!-- SYSTEM_ARCHITECTURE:START -->
+## システム構成（自動生成）
+
+この節は `src/data/system-architecture.json` から生成しています（構成情報の更新日: 2026-10-02）。画面の「システム構成」タブも同じデータを表示します。
+
+```text
+手動サイト診断: 利用者 → Next.js画面 → POST /api/site → 診断対象サイト
+定期監視: Vercel Cron → GET /api/cron/monitor → 診断エンジン → Postgres
+SEO自動分析: Codex → POST /api/automation/seo-report → Vercel OIDC / Google WIF → GA4 + GSC
+開発・公開: Codexクラウド環境 → GitHub main → Vercel Build → 本番ツール
+```
+
+### 連携API・サービス
+
+| API / サービス | 分類 | 用途 | 認証 | 状態 | 設定 |
+|---|---|---|---|---|---|
+| GitHub<br>sage-del/HP-Checker-sage | ソース管理 | ソースコード・README・変更履歴の保管 | GitHub認証 | 稼働中 | `main branch` |
+| Vercel<br>Hosting / Build / Cron / OIDC | 実行基盤 | Next.jsのビルド・公開、定期実行、Google向け短期OIDCトークンの発行 | GitHub連携・Vercel OIDC | 稼働中 | `VERCEL_OIDC_TOKEN（自動設定）` |
+| Google Analytics Data API<br>analyticsdata.googleapis.com | 分析データ | 自然検索のセッション、エンゲージメント、ランディングページを取得 | Google Workload Identity + サービスアカウント | 環境変数の設定待ち | `GA4_PROPERTY_ID`<br>`GOOGLE_SERVICE_ACCOUNT_EMAIL`<br>`GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` |
+| Google Search Console API<br>searchconsole.googleapis.com | 検索データ | 検索語句・ページ別のクリック、表示、CTR、平均掲載順位を取得 | Google Workload Identity + サービスアカウント | 環境変数の設定待ち | `GSC_SITE_URL`<br>`GOOGLE_SERVICE_ACCOUNT_EMAIL`<br>`GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` |
+| Google Security Token Service API<br>sts.googleapis.com | 認証 | Vercel OIDCトークンをGoogleの短期認証情報へ交換 | OIDC / OAuth 2.0 Token Exchange | 疎通確認待ち | `GOOGLE_WORKLOAD_IDENTITY_AUDIENCE` |
+| IAM Service Account Credentials API<br>iamcredentials.googleapis.com | 認証 | サービスアカウントの短期アクセストークンを発行 | Workload Identity Federation | 疎通確認待ち | `GOOGLE_SERVICE_ACCOUNT_EMAIL` |
+| PostgreSQL<br>Neon / Supabase / Vercel Postgres等 | データ保存 | 定期監視サイト、診断履歴、リンク切れ、通知を保存 | 接続文字列（サーバー側のみ） | 任意機能 | `DATABASE_URL` |
+| 診断対象Webサイト<br>HTTP / HTTPS | 診断入力 | 公開HTML、robots.txt、sitemap、内部リンクを取得して診断 | なし（公開URLのみ） | 稼働中 | `SITE_MAX_PAGES`<br>`ALLOW_PRIVATE_HOSTS（開発時のみ）` |
+
+### 内部API
+
+| Method | Path | 用途 | 認証 |
+|---|---|---|---|
+| POST | `/api/site` | サイト全体をクロールし、進捗と診断結果を配信 | 任意のサイト全体Basic認証 |
+| POST | `/api/automation/seo-report` | 技術診断・GA4・GSCを統合したSEOレポート | AUTOMATION_API_KEY（Bearer） |
+| GET | `/api/cron/monitor` | 期限の来た監視サイトを定期診断 | CRON_SECRET（Bearer） |
+| POST | `/api/monitor/sites/[id]/run` | 指定した監視サイトを今すぐ診断 | サイト全体Basic認証 |
+| GET | `/api/monitor/alerts/unread` | 未読通知数を取得 | サイト全体Basic認証 |
+
+### 再現手順
+
+1. GitHubのmainブランチを取得し、npm installを実行する。
+2. .env.exampleを.env.localへコピーし、使う機能の環境変数だけを設定する。
+3. GA4/GSC連携ではGoogle API、サービスアカウント、Workload Identity、各プロパティ権限を設定する。
+4. npm run docs:system:check、npm run lint、npm run typecheck、npm test、npm run buildで検証する。
+5. GitHub mainとVercelを接続し、本番用環境変数を設定してデプロイする。
+
+### 更新ルール
+
+- 外部サービス、API、認証方式、環境変数、主要データフローを変更したら、このJSONを同じ変更で更新する。
+- READMEの自動生成範囲は直接編集せず、npm run docs:systemで更新する。
+- npm run docs:system:checkを実行し、JSONとREADMEのずれがないことを確認する。
+- APIキー、パスワード、接続文字列、JSON秘密鍵などの秘密値はJSON・README・画面へ保存しない。
+- 本番反映前にlint、typecheck、test、buildを実行し、変更した連携の疎通も確認する。
+<!-- SYSTEM_ARCHITECTURE:END -->
 
 ---
 
@@ -250,6 +305,8 @@ npm run build      # 本番ビルド
 npm run start      # 本番サーバー
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
+npm run docs:system        # 構成JSONからREADMEを更新
+npm run docs:system:check  # 構成JSONとREADMEのずれを検出
 npm test           # vitest（判定ロジックの単体テスト）
 # 本番と同じ postgres ドライバーでの保存も確かめるとき（空のデータベースを指定する。テーブルを作り直す）
 TEST_DATABASE_URL=postgres://... npm test
@@ -265,6 +322,7 @@ src/
     page.tsx            # サイト診断（SEO・AIO）
     api/site/           # サイト診断（Route Handler、nodejs runtime）
     monitor/            # 定期監視の画面（ダッシュボード・サイト追加・リンク切れ・診断履歴・通知）とサーバーアクション
+    system/             # システム構成・連携API・再現手順（構成JSONを表示）
     settings/           # 設定の確認画面
     api/monitor/ api/cron/monitor/  # 今すぐ診断・未読数・定期診断
   proxy.ts              # Basic 認証（旧 middleware）
@@ -279,6 +337,7 @@ src/
     pdf/                # レポートの PDF 化（html2canvas + jsPDF）
     links/              # リンク切れの検出（参照の抽出・ステータス確認）
     monitor/            # 定期監視（保存・スケジュール・通知の導出・認証）
+    system/             # 構成JSONの型と表示用ラベル
     brand.ts            # サービスの呼び名（唯一の定義）
     ui/                 # 色トークンの単一定義（palette.ts / grade.ts）
 ```
@@ -289,6 +348,7 @@ src/
 - **色は `src/lib/ui/palette.ts` と `globals.css` の `@theme` トークンだけ**から取ります。JSX に生の hex は書きません。
 - **データを捏造しない。** 測れなかった項目は「未取得」として扱い、0 や「なし」と混同しません。
 - 判定ロジックは純関数として `src/lib/**` に置き、`__tests__` でテストします。
+- **連携API・サービス・認証・環境変数・主要フローを変えるときは `src/data/system-architecture.json` も更新し、`npm run docs:system` を実行します。** READMEの自動生成範囲と「システム構成」タブは同じデータを使います。
 
 ---
 

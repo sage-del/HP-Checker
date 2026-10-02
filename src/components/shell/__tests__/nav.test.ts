@@ -14,6 +14,7 @@ describe("isNavActive", () => {
     expect(activeAt("/monitor/runs")).toEqual(["診断履歴"]);
     expect(activeAt("/monitor/runs/12")).toEqual(["診断履歴"]);
     expect(activeAt("/monitor/alerts")).toEqual(["通知"]);
+    expect(activeAt("/system")).toEqual(["システム構成"]);
     expect(activeAt("/settings")).toEqual(["設定"]);
   });
 

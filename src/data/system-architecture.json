@@ -1,0 +1,137 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-10-02",
+  "systemName": "サイト健診（HP Checker）",
+  "sourceOfTruth": "src/data/system-architecture.json",
+  "repository": {
+    "name": "sage-del/HP-Checker-sage",
+    "branch": "main",
+    "hosting": "GitHub"
+  },
+  "runtime": {
+    "name": "Vercel",
+    "framework": "Next.js",
+    "project": "hp-checker-sage"
+  },
+  "flows": [
+    {
+      "id": "manual-audit",
+      "title": "手動サイト診断",
+      "description": "利用者がURLを入力し、対象サイトをクロールしてSEO・AIOレポートを画面とPDFで確認します。",
+      "steps": ["利用者", "Next.js画面", "POST /api/site", "診断対象サイト"]
+    },
+    {
+      "id": "scheduled-monitoring",
+      "title": "定期監視",
+      "description": "Vercel Cronが期限の来たサイトを診断し、結果・リンク切れ・通知をPostgresへ保存します。",
+      "steps": ["Vercel Cron", "GET /api/cron/monitor", "診断エンジン", "Postgres"]
+    },
+    {
+      "id": "seo-automation",
+      "title": "SEO自動分析",
+      "description": "Codexから保護されたAPIを呼び、技術診断・GA4・Search Consoleを統合して改善候補を返します。",
+      "steps": ["Codex", "POST /api/automation/seo-report", "Vercel OIDC / Google WIF", "GA4 + GSC"]
+    },
+    {
+      "id": "deployment",
+      "title": "開発・公開",
+      "description": "Codexクラウド環境で編集・検証し、GitHub mainへの反映をきっかけにVercelが本番公開します。",
+      "steps": ["Codexクラウド環境", "GitHub main", "Vercel Build", "本番ツール"]
+    }
+  ],
+  "integrations": [
+    {
+      "name": "GitHub",
+      "service": "sage-del/HP-Checker-sage",
+      "category": "ソース管理",
+      "purpose": "ソースコード・README・変更履歴の保管",
+      "authentication": "GitHub認証",
+      "status": "active",
+      "configuration": ["main branch"]
+    },
+    {
+      "name": "Vercel",
+      "service": "Hosting / Build / Cron / OIDC",
+      "category": "実行基盤",
+      "purpose": "Next.jsのビルド・公開、定期実行、Google向け短期OIDCトークンの発行",
+      "authentication": "GitHub連携・Vercel OIDC",
+      "status": "active",
+      "configuration": ["VERCEL_OIDC_TOKEN（自動設定）"]
+    },
+    {
+      "name": "Google Analytics Data API",
+      "service": "analyticsdata.googleapis.com",
+      "category": "分析データ",
+      "purpose": "自然検索のセッション、エンゲージメント、ランディングページを取得",
+      "authentication": "Google Workload Identity + サービスアカウント",
+      "status": "pending-env",
+      "configuration": ["GA4_PROPERTY_ID", "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_WORKLOAD_IDENTITY_AUDIENCE"]
+    },
+    {
+      "name": "Google Search Console API",
+      "service": "searchconsole.googleapis.com",
+      "category": "検索データ",
+      "purpose": "検索語句・ページ別のクリック、表示、CTR、平均掲載順位を取得",
+      "authentication": "Google Workload Identity + サービスアカウント",
+      "status": "pending-env",
+      "configuration": ["GSC_SITE_URL", "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_WORKLOAD_IDENTITY_AUDIENCE"]
+    },
+    {
+      "name": "Google Security Token Service API",
+      "service": "sts.googleapis.com",
+      "category": "認証",
+      "purpose": "Vercel OIDCトークンをGoogleの短期認証情報へ交換",
+      "authentication": "OIDC / OAuth 2.0 Token Exchange",
+      "status": "pending-verification",
+      "configuration": ["GOOGLE_WORKLOAD_IDENTITY_AUDIENCE"]
+    },
+    {
+      "name": "IAM Service Account Credentials API",
+      "service": "iamcredentials.googleapis.com",
+      "category": "認証",
+      "purpose": "サービスアカウントの短期アクセストークンを発行",
+      "authentication": "Workload Identity Federation",
+      "status": "pending-verification",
+      "configuration": ["GOOGLE_SERVICE_ACCOUNT_EMAIL"]
+    },
+    {
+      "name": "PostgreSQL",
+      "service": "Neon / Supabase / Vercel Postgres等",
+      "category": "データ保存",
+      "purpose": "定期監視サイト、診断履歴、リンク切れ、通知を保存",
+      "authentication": "接続文字列（サーバー側のみ）",
+      "status": "optional",
+      "configuration": ["DATABASE_URL"]
+    },
+    {
+      "name": "診断対象Webサイト",
+      "service": "HTTP / HTTPS",
+      "category": "診断入力",
+      "purpose": "公開HTML、robots.txt、sitemap、内部リンクを取得して診断",
+      "authentication": "なし（公開URLのみ）",
+      "status": "active",
+      "configuration": ["SITE_MAX_PAGES", "ALLOW_PRIVATE_HOSTS（開発時のみ）"]
+    }
+  ],
+  "internalApis": [
+    { "method": "POST", "path": "/api/site", "purpose": "サイト全体をクロールし、進捗と診断結果を配信", "auth": "任意のサイト全体Basic認証" },
+    { "method": "POST", "path": "/api/automation/seo-report", "purpose": "技術診断・GA4・GSCを統合したSEOレポート", "auth": "AUTOMATION_API_KEY（Bearer）" },
+    { "method": "GET", "path": "/api/cron/monitor", "purpose": "期限の来た監視サイトを定期診断", "auth": "CRON_SECRET（Bearer）" },
+    { "method": "POST", "path": "/api/monitor/sites/[id]/run", "purpose": "指定した監視サイトを今すぐ診断", "auth": "サイト全体Basic認証" },
+    { "method": "GET", "path": "/api/monitor/alerts/unread", "purpose": "未読通知数を取得", "auth": "サイト全体Basic認証" }
+  ],
+  "maintenanceRules": [
+    "外部サービス、API、認証方式、環境変数、主要データフローを変更したら、このJSONを同じ変更で更新する。",
+    "READMEの自動生成範囲は直接編集せず、npm run docs:systemで更新する。",
+    "npm run docs:system:checkを実行し、JSONとREADMEのずれがないことを確認する。",
+    "APIキー、パスワード、接続文字列、JSON秘密鍵などの秘密値はJSON・README・画面へ保存しない。",
+    "本番反映前にlint、typecheck、test、buildを実行し、変更した連携の疎通も確認する。"
+  ],
+  "reproductionSteps": [
+    "GitHubのmainブランチを取得し、npm installを実行する。",
+    ".env.exampleを.env.localへコピーし、使う機能の環境変数だけを設定する。",
+    "GA4/GSC連携ではGoogle API、サービスアカウント、Workload Identity、各プロパティ権限を設定する。",
+    "npm run docs:system:check、npm run lint、npm run typecheck、npm test、npm run buildで検証する。",
+    "GitHub mainとVercelを接続し、本番用環境変数を設定してデプロイする。"
+  ]
+}
